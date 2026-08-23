@@ -23,30 +23,45 @@ Rules:
 6. If unsure, say you don't know and suggest verifying against current eCFR.
 """
 
-# Pydantic AI agent - brain
-gxp_agent = Agent(
-    MODEL_NAME if not MOCK_MODE else "openai:gpt-4o-mini",  # model name still needed for mock
-    system_prompt=SYSTEM_PROMPT,
-    # output_type will be set dynamically per request
-)
+def _register_tools(agent: Agent) -> None:
+    """Register the shared search tools on an agent (called per output type)."""
 
-@gxp_agent.tool
-async def search_ecfr_tool(ctx: RunContext, query: str) -> list[dict]:
-    """Search eCFR for FDA regulations. Use for all CFR questions."""
-    results = await ecfr.search_ecfr(query)
-    return [r.model_dump() for r in results]
+    @agent.tool
+    async def search_ecfr_tool(ctx: RunContext, query: str) -> list[dict]:
+        """Search eCFR for FDA regulations. Use for all CFR questions."""
+        results = await ecfr.search_ecfr(query)
+        return [r.model_dump() for r in results]
 
-@gxp_agent.tool
-async def search_warning_letters_tool(ctx: RunContext, keyword: str) -> list[dict]:
-    """Search FDA warning letters for precedent."""
-    results = await openfda.search_warning_letters(keyword)
-    return [r.model_dump() for r in results]
+    @agent.tool
+    async def search_warning_letters_tool(ctx: RunContext, keyword: str) -> list[dict]:
+        """Search FDA warning letters for precedent."""
+        results = await openfda.search_warning_letters(keyword)
+        return [r.model_dump() for r in results]
 
-@gxp_agent.tool
-async def search_ich_tool(ctx: RunContext, query: str) -> list[dict]:
-    """Search ICH guidelines Q7-Q10."""
-    results = await ich.search_ich(query)
-    return [r.model_dump() for r in results]
+    @agent.tool
+    async def search_ich_tool(ctx: RunContext, query: str) -> list[dict]:
+        """Search ICH guidelines Q7-Q10."""
+        results = await ich.search_ich(query)
+        return [r.model_dump() for r in results]
+
+
+# Agents are created lazily on first real (non-mock) run: pydantic-ai 2.x
+# requires an API key when constructing an OpenAI-backed agent, and mock mode
+# must work without one. output_type is fixed at construction in 2.x (the old
+# `override(output_type=...)` API was removed), so cache one agent per type.
+_agents: dict[str, Agent] = {}
+
+def _get_agent(output_type: str) -> Agent:
+    """Build (and cache) the agent for the requested output type."""
+    if output_type not in _agents:
+        agent = Agent(
+            MODEL_NAME,
+            instructions=SYSTEM_PROMPT,
+            output_type=DeviationDraft if output_type == "DeviationDraft" else CFRAnswer,
+        )
+        _register_tools(agent)
+        _agents[output_type] = agent
+    return _agents[output_type]
 
 # Mock agent for demo without API key
 class MockAgentResult:
@@ -80,10 +95,5 @@ async def run_gxp_agent(prompt: str, output_type: str = "CFRAnswer"):
             return mock
 
     # Real LLM path
-    if output_type == "DeviationDraft":
-        agent = gxp_agent.override(output_type=DeviationDraft)
-    else:
-        agent = gxp_agent.override(output_type=CFRAnswer)
-
-    result = await agent.run(prompt)
+    result = await _get_agent(output_type).run(prompt)
     return result.output

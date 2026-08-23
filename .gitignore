@@ -27,6 +27,7 @@ wheels/
 MANIFEST
 venv/
 .venv/
+.venv*/
 env/
 ENV/
 env.bak/
