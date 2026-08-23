@@ -4,8 +4,9 @@ from pydantic_ai import Agent, RunContext
 
 load_dotenv()
 
-MODEL_NAME = os.getenv("MODEL_NAME", "openai:gpt-4o-mini")
-MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true" or not os.getenv("OPENAI_API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME", "ollama:muse-glimmer")
+# Local Ollama needs no API key - mock mode is opt-in via MOCK_MODE=true
+MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
 
 from .schemas import CFRAnswer, DeviationDraft, CFRReference
 from .tools import ecfr, openfda, ich
@@ -45,9 +46,8 @@ def _register_tools(agent: Agent) -> None:
         return [r.model_dump() for r in results]
 
 
-# Agents are created lazily on first real (non-mock) run: pydantic-ai 2.x
-# requires an API key when constructing an OpenAI-backed agent, and mock mode
-# must work without one. output_type is fixed at construction in 2.x (the old
+# Agents are created lazily on first real (non-mock) run so import stays fast
+# and offline-safe. output_type is fixed at construction in 2.x (the old
 # `override(output_type=...)` API was removed), so cache one agent per type.
 _agents: dict[str, Agent] = {}
 
