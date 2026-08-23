@@ -1,0 +1,27 @@
+[
+  {
+    "id": "cfr_001",
+    "question": "What does 21 CFR 211.192 require for investigation of discrepancies?",
+    "expected_citation": "21 CFR 211.192",
+    "tier": "informational"
+  },
+  {
+    "id": "cfr_002",
+    "question": "Explain EU GMP Annex 1 requirements for contamination control strategy",
+    "expected_citation": "EU GMP Annex 1",
+    "tier": "informational"
+  },
+  {
+    "id": "cfr_003",
+    "question": "What are the 6 systems in ICH Q10 pharmaceutical quality system?",
+    "expected_citation": "ICH Q10",
+    "tier": "informational"
+  },
+  {
+    "id": "dev_001",
+    "question": "Draft a minor deviation for -20C freezer temperature excursion to -15C for 2 hours",
+    "expected_type": "DeviationDraft",
+    "must_include_cfr": true,
+    "tier": "gxp-impacting"
+  }
+]
