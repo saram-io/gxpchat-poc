@@ -11,7 +11,7 @@ Vercel AI SDK (chatbot UI only) + Pydantic AI (agent brain)
 cd agent
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # add OPENAI_API_KEY or use mock mode
+cp .env.example .env  # local Ollama by default; set MOCK_MODE=true for demos without Ollama
 uvicorn main:app --reload --port 8000
 
 ### 2. Web (Vercel AI SDK)
