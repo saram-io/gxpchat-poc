@@ -1,17 +1,68 @@
-version: '3.8'
 services:
   qdrant:
     image: qdrant/qdrant:latest
-    ports: ["6333:6333"]
+    # 6333 taken by another stack on this host -> 6335 (REST) / 6336 (gRPC)
+    ports: ["6335:6333", "6336:6334"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: gxpchat
       POSTGRES_USER: gxp
       POSTGRES_PASSWORD: gxp
-    ports: ["5432:5432"]
+    # 5432/5433 taken on this host -> 5434
+    ports: ["5434:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gxp -d gxpchat"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ollama:
+    # Pinned to match the host version (0.32.13): earlier versions (e.g. 0.31.2)
+    # report that muse-glimmer "does not support tools".
+    image: ollama/ollama:0.32.13
+    # Use the host GPU (RTX 4090) - without this the 27.9B model runs CPU-only
+    # at ~1.5 tok/s. Requires nvidia-container-toolkit.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Reuse the host's already-pulled models (108G) instead of re-downloading.
+    # Host ollama already binds 11434, so publish the container on 11436.
+    volumes:
+      - /usr/share/ollama/.ollama/models:/root/.ollama/models
+    ports: ["11436:11434"]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
   agent:
     build: ./agent
-    ports: ["8000:8000"]
+    # 8000 taken by another stack on this host -> 8010
+    ports: ["8010:8000"]
     env_file: ./agent/.env
-    depends_on: [qdrant, postgres]
+    environment:
+      # In-container values (override env_file, which uses localhost for local dev)
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      MODEL_NAME: ollama:muse-glimmer
+      MOCK_MODE: "false"
+      QDRANT_URL: http://qdrant:6333
+      DATABASE_URL: postgresql://gxp:gxp@postgres:5432/gxpchat
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
